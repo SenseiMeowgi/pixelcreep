@@ -1,0 +1,94 @@
+import { Theme } from "../theme.slint";
+
+// Custom slider matching the editor mockup:
+// 3px-tall control-bg track, 10x14 accent-square thumb, orange when focused.
+// No std-widgets — Rectangle + TouchArea + FocusScope only.
+export component MiniSlider inherits Rectangle {
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in property <float> step: 1;
+    in-out property <float> value: 0;
+    callback changed(float);
+
+    private property <length> thumb-w: 10px;
+    private property <length> thumb-h: 14px;
+    private property <length> track-h: 3px;
+    private property <length> track-x: thumb-w / 2;
+    private property <length> track-w: self.width - thumb-w;
+    private property <float> span: max(0.0001, root.maximum - root.minimum);
+    private property <float> ratio: clamp((root.value - root.minimum) / span, 0, 1);
+
+    height: 16px;
+    horizontal-stretch: 1;
+    background: transparent;
+
+    function commit-from(px: length) {
+        if (root.maximum > root.minimum) {
+            // Map pointer x to value space, snap to step.
+            self.value = clamp(
+                root.minimum + round((px - track-x) / track-w * span / root.step) * root.step,
+                root.minimum,
+                root.maximum,
+            );
+            self.changed(self.value);
+        }
+    }
+
+    // Track
+    Rectangle {
+        x: track-x;
+        y: (parent.height - track-h) / 2;
+        width: track-w;
+        height: track-h;
+        background: Theme.control-bg;
+    }
+
+    // Thumb
+    Rectangle {
+        x: track-x + ratio * track-w - thumb-w / 2;
+        y: (parent.height - thumb-h) / 2;
+        width: thumb-w;
+        height: thumb-h;
+        background: focus.has-focus ? Theme.accent-orange : Theme.accent;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: ew-resize;
+        clicked => {
+            focus.focus();
+        }
+        moved => {
+            if (self.pressed) {
+                commit-from(self.mouse-x);
+            }
+        }
+        pointer-event(ev) => {
+            if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                commit-from(self.mouse-x);
+            }
+        }
+    }
+
+    focus := FocusScope {
+        key-pressed(ev) => {
+            if (ev.text == Key.LeftArrow) {
+                root.value = clamp(root.value - root.step * (ev.modifiers.shift ? 10 : 1), root.minimum, root.maximum);
+                root.changed(root.value);
+                return accept;
+            } else if (ev.text == Key.RightArrow) {
+                root.value = clamp(root.value + root.step * (ev.modifiers.shift ? 10 : 1), root.minimum, root.maximum);
+                root.changed(root.value);
+                return accept;
+            } else if (ev.text == Key.Home) {
+                root.value = root.minimum;
+                root.changed(root.value);
+                return accept;
+            } else if (ev.text == Key.End) {
+                root.value = root.maximum;
+                root.changed(root.value);
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

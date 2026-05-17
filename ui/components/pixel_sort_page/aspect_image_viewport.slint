@@ -1,0 +1,148 @@
+import { Theme } from "../../theme.slint";
+
+/// Fixed-aspect image bounds. Zoom and rotation clip to the source image area.
+export component AspectImageViewport inherits Rectangle {
+    in property <image> source;
+    in property <float> rotation-deg;
+    in-out property <float> zoom;
+    in-out property <float> pan-x-norm;
+    in-out property <float> pan-y-norm;
+    // Pan currently baked into `source` by the Rust render worker. Live drag
+    // shows the delta `(pan-norm - last-rendered-pan-norm)` as a cheap GPU
+    // translate so the image follows the mouse instantly; the delta returns to
+    // zero once the worker re-bakes B with the committed pan on mouse-up.
+    in property <float> last-rendered-pan-x-norm: 0;
+    in property <float> last-rendered-pan-y-norm: 0;
+    // Ratio of source pixel size to document pixel size on each axis. Default
+    // 1.0 means "same shape as the doc". When the container has been rotated or
+    // squared (doc-mode != 0), one of these moves away from 1.0 and the user
+    // gains slack to pan within, even at zoom = 100%.
+    in property <float> src-to-dst-w: 1;
+    in property <float> src-to-dst-h: 1;
+    in property <bool> interaction-enabled: true;
+    callback transform-changed();
+    callback drag-preview-requested();
+
+    private property <float> zoom-scale: max(0.1, root.zoom / 100);
+    // Per-axis pan limit: |src*zoom/dst - 1| / 2. Non-zero whenever the source
+    // doesn't exactly fill the document on that axis (zoom overflow OR aspect
+    // mismatch from doc-mode).
+    private property <float> max-pan-x-norm: abs(root.src-to-dst-w * zoom-scale - 1) / 2;
+    private property <float> max-pan-y-norm: abs(root.src-to-dst-h * zoom-scale - 1) / 2;
+    private property <float> bounded-pan-x-norm: clamp(root.pan-x-norm, -max-pan-x-norm, max-pan-x-norm);
+    private property <float> bounded-pan-y-norm: clamp(root.pan-y-norm, -max-pan-y-norm, max-pan-y-norm);
+    private property <length> drag-start-x: 0px;
+    private property <length> drag-start-y: 0px;
+    private property <float> drag-start-pan-x-norm: 0;
+    private property <float> drag-start-pan-y-norm: 0;
+    // True while the user is mid-drag (left button held). Drives the throttled
+    // live-render timer below.
+    private property <bool> drag-active: false;
+    // True when the pan has moved since the timer last fired transform-changed.
+    // Lets the timer skip work on a press-and-hold-still gesture.
+    private property <bool> drag-dirty: false;
+    private property <float> old-scale: 1;
+    private property <float> next-scale: 1;
+    private property <float> next-zoom-value: 100;
+    private property <float> zoom-ratio: 1;
+    private property <float> focal-x-norm: 0;
+    private property <float> focal-y-norm: 0;
+
+    function zoom-at(px: length, py: length, next-zoom: float) {
+        next-zoom-value = clamp(next-zoom, 10, 400);
+        if (next-zoom-value != root.zoom) {
+            old-scale = zoom-scale;
+            next-scale = max(0.1, next-zoom-value / 100);
+            zoom-ratio = next-scale / old-scale;
+            focal-x-norm = (px - root.width / 2) / root.width;
+            focal-y-norm = (py - root.height / 2) / root.height;
+
+            root.zoom = next-zoom-value;
+            root.pan-x-norm = focal-x-norm * (1 - zoom-ratio) + bounded-pan-x-norm * zoom-ratio;
+            root.pan-y-norm = focal-y-norm * (1 - zoom-ratio) + bounded-pan-y-norm * zoom-ratio;
+            root.transform-changed();
+        }
+    }
+
+    clip: true;
+    background: Theme.canvas-tile-a;
+    border-width: 1px;
+    border-color: Theme.divider;
+    border-radius: 0px;
+
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../../assets/image_stripes.png");
+        horizontal-tiling: repeat;
+        vertical-tiling: repeat;
+    }
+
+    // Source image is the worker's baked B. We add the in-flight pan delta as
+    // an x/y offset so live mouse-drag is instant; the offset auto-zeroes once
+    // the worker publishes a B baked with the new pan.
+    Image {
+        x: (root.pan-x-norm - root.last-rendered-pan-x-norm) * parent.width;
+        y: (root.pan-y-norm - root.last-rendered-pan-y-norm) * parent.height;
+        width: parent.width;
+        height: parent.height;
+        source: root.source;
+        image-fit: fill;
+    }
+
+    // Throttled live-render trickle: while a drag is active, periodically ask
+    // the worker to re-bake B with the current pan so newly-exposed regions
+    // get source content. Cheap when held still (drag-dirty stays false).
+    drag-render-timer := Timer {
+        interval: 100ms;
+        running: drag-active;
+        triggered => {
+            if (drag-dirty) {
+                drag-dirty = false;
+                root.drag-preview-requested();
+            }
+        }
+    }
+
+    touch := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: root.interaction-enabled;
+        mouse-cursor: self.pressed ? grabbing : grab;
+
+        pointer-event(ev) => {
+            if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                drag-start-x = self.mouse-x;
+                drag-start-y = self.mouse-y;
+                drag-start-pan-x-norm = bounded-pan-x-norm;
+                drag-start-pan-y-norm = bounded-pan-y-norm;
+                drag-active = true;
+                drag-dirty = false;
+            }
+            if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.up) {
+                drag-active = false;
+                root.transform-changed();
+            }
+        }
+
+        moved => {
+            if (self.pressed) {
+                // Update pan during the drag. The Image's x/y delta provides
+                // instant cursor-following; drag-render-timer throttles the
+                // Rust bake so newly-exposed regions fill in within ~100 ms.
+                root.pan-x-norm = clamp(drag-start-pan-x-norm + (self.mouse-x - drag-start-x) / root.width, -max-pan-x-norm, max-pan-x-norm);
+                root.pan-y-norm = clamp(drag-start-pan-y-norm + (self.mouse-y - drag-start-y) / root.height, -max-pan-y-norm, max-pan-y-norm);
+                drag-dirty = true;
+            }
+        }
+
+        scroll-event(ev) => {
+            if (ev.delta-y != 0) {
+                root.zoom-at(self.mouse-x, self.mouse-y, root.zoom + (ev.delta-y < 0 ? 20 : -20));
+                return accept;
+            }
+
+            return reject;
+        }
+    }
+}

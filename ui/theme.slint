@@ -1,0 +1,50 @@
+import { StyleMetrics } from "std-widgets.slint";
+
+// Gruvbox dark palette — official values from morhetz/gruvbox-contrib color.table
+// https://github.com/morhetz/gruvbox-contrib/blob/master/color.table
+export global Theme {
+    in property <string> font-family: "JetBrainsMono Nerd Font";
+
+    in property <length> gap-xs: 4px;
+    in property <length> gap-sm: 8px;
+    in property <length> gap-md: StyleMetrics.layout-spacing;
+    in property <length> gap-lg: 16px;
+    in property <length> gap-xl: 24px;
+
+    in property <length> pad-sm: StyleMetrics.layout-padding;
+    in property <length> pad-md: 16px;
+    in property <length> pad-lg: 24px;
+    in property <length> pad-page: 32px;
+
+    in property <length> radius-sm: 2px;
+    in property <length> radius-md: 4px;
+    in property <length> radius-lg: 6px;
+
+    // Gruvbox dark backgrounds
+    in property <brush> hard-bg: #1d2021;
+    in property <brush> page-bg: #282828;
+    in property <brush> panel-bg: #3c3836;
+    in property <brush> control-bg: #504945;
+    in property <brush> control-hover-bg: #665c54;
+    in property <brush> canvas-bg: #181818;
+    in property <brush> canvas-tile-a: #202020;
+    in property <brush> canvas-tile-b: #252525;
+    in property <brush> divider: #000000;
+
+    // Gruvbox foregrounds
+    in property <brush> text: #fbf1c7;
+    in property <brush> text-soft: #ebdbb2;
+    in property <brush> text-dim: #d5c4a1;
+    in property <brush> text-muted: #928374;
+    in property <brush> text-faint: #a89984;
+    in property <brush> border: #665c54;
+
+    // Accents
+    in property <brush> accent: #fabd2f;
+    in property <brush> accent-green: #b8bb26;
+    in property <brush> accent-red: #fb4934;
+    in property <brush> accent-orange: #fe8019;
+    in property <brush> accent-blue: #83a598;
+    in property <brush> accent-purple: #d3869b;
+    in property <brush> accent-aqua: #8ec07c;
+}

@@ -1,0 +1,117 @@
+import { Theme } from "../../../theme.slint";
+import { AsdfSortMode } from "../../../types.slint";
+import { EditorSlider } from "../../slider.slint";
+import { SectionHead } from "../section_head.slint";
+
+component SegmentButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    height: 28px;
+    background: root.active ? Theme.accent : (touch.has-hover ? Theme.control-bg : Theme.panel-bg);
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    Text {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        text: root.label;
+        color: root.active ? Theme.page-bg : Theme.text-faint;
+        font-size: 11px;
+    }
+}
+
+export component ThresholdSortParams inherits VerticalLayout {
+    in-out property <AsdfSortMode> mode;
+    in-out property <float> loops;
+    in-out property <float> white-value;
+    in-out property <float> black-value;
+    in-out property <float> bright-value;
+    in-out property <float> dark-value;
+
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    spacing: 10px;
+    alignment: start;
+
+    SectionHead { label: "PARAMETERS"; hint: "ASDF threshold sort"; }
+
+    Rectangle {
+        background: #000000;
+        height: 30px;
+
+        HorizontalLayout {
+            padding: 1px;
+            spacing: 1px;
+
+            SegmentButton { label: "white"; active: root.mode == AsdfSortMode.white; clicked => { root.mode = AsdfSortMode.white; } }
+            SegmentButton { label: "black"; active: root.mode == AsdfSortMode.black; clicked => { root.mode = AsdfSortMode.black; } }
+            SegmentButton { label: "bright"; active: root.mode == AsdfSortMode.bright; clicked => { root.mode = AsdfSortMode.bright; } }
+            SegmentButton { label: "dark"; active: root.mode == AsdfSortMode.dark; clicked => { root.mode = AsdfSortMode.dark; } }
+        }
+    }
+
+    EditorSlider {
+        label: "loops";
+        minimum: 1;
+        maximum: 20;
+        step: 1;
+        default-value: 1;
+        value <=> root.loops;
+    }
+
+    Rectangle { height: 4px; background: transparent; }
+    Rectangle { height: 1px; background: Theme.panel-bg; }
+    Rectangle { height: 4px; background: transparent; }
+
+    SectionHead { label: "SIGNED RGB"; hint: "white / black thresholds"; }
+
+    EditorSlider {
+        label: "white value";
+        minimum: -16581375;
+        maximum: 0;
+        step: 1000;
+        default-value: -12345678;
+        value <=> root.white-value;
+    }
+
+    EditorSlider {
+        label: "black value";
+        minimum: -16581375;
+        maximum: 0;
+        step: 1000;
+        default-value: -3456789;
+        value <=> root.black-value;
+    }
+
+    Rectangle { height: 4px; background: transparent; }
+    Rectangle { height: 1px; background: Theme.panel-bg; }
+    Rectangle { height: 4px; background: transparent; }
+
+    SectionHead { label: "BRIGHTNESS"; hint: "0-255 thresholds"; }
+
+    EditorSlider {
+        label: "bright value";
+        minimum: 0;
+        maximum: 255;
+        step: 1;
+        default-value: 127;
+        value <=> root.bright-value;
+    }
+
+    EditorSlider {
+        label: "dark value";
+        minimum: 0;
+        maximum: 255;
+        step: 1;
+        default-value: 223;
+        value <=> root.dark-value;
+    }
+}

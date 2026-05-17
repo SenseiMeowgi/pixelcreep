@@ -1,0 +1,22 @@
+import { Theme } from "../../../theme.slint";
+import { SectionHead } from "../section_head.slint";
+
+export component EmptySortParams inherits VerticalLayout {
+    in property <string> method-label: "";
+
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    spacing: 10px;
+    alignment: start;
+
+    SectionHead { label: "PARAMETERS"; hint: root.method-label == "" ? "placeholder sorter" : root.method-label; }
+
+    Text {
+        text: "NO PARAMETERS";
+        color: Theme.text-faint;
+        font-size: 10px;
+        letter-spacing: 2px;
+    }
+}

@@ -1,0 +1,33 @@
+import { Theme } from "../theme.slint";
+import { RecentImage } from "../types.slint";
+import { DropZone } from "../components/import_page/drop_zone.slint";
+
+export component ImportPage inherits Rectangle {
+    in property <string> selected-path: "";
+    in property <string> selected-label: "";
+    in property <bool> drag-active: false;
+    in property <[RecentImage]> recent-images;
+    callback activate;
+    callback open-recent-image(string);
+
+    background: Theme.page-bg;
+
+    VerticalLayout {
+        padding: Theme.pad-page;
+
+        DropZone {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+            drag-active: root.drag-active;
+            selected-path: root.selected-path;
+            selected-label: root.selected-label;
+            recent-images: root.recent-images;
+            activate => {
+                root.activate();
+            }
+            open-recent-image(path) => {
+                root.open-recent-image(path);
+            }
+        }
+    }
+}

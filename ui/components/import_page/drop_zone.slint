@@ -1,0 +1,181 @@
+import { Theme } from "../../theme.slint";
+import { RecentImage } from "../../types.slint";
+
+component DottedFrame inherits Rectangle {
+    in property <brush> stroke-color: Theme.border;
+    in property <length> stroke: 2px;
+    in property <length> dash-len: 8px;
+    in property <length> gap-len: 5px;
+
+    // Compute segment counts from the available run length so dashes
+    // always span exactly between the rounded corners. Reserve radius-md
+    // on each end as the corner cut-off.
+    private property <length> h-run: max(0px, self.width - 2 * Theme.radius-md);
+    private property <length> v-run: max(0px, self.height - 2 * Theme.radius-md);
+    // pitch = dash + gap (one repeating unit). Floor((run + gap) / pitch)
+    // gives an exact dash count that fits without overflowing the run.
+    private property <int> h-count: max(1, floor((h-run + gap-len) / (dash-len + gap-len)));
+    private property <int> v-count: max(1, floor((v-run + gap-len) / (dash-len + gap-len)));
+
+    clip: true;
+
+    HorizontalLayout {
+        y: 0;
+        width: parent.width;
+        height: stroke;
+        spacing: gap-len;
+        padding-left: Theme.radius-md;
+        padding-right: Theme.radius-md;
+        alignment: center;
+
+        for _[i] in h-count: Rectangle {
+            width: dash-len;
+            height: stroke;
+            background: stroke-color;
+        }
+    }
+
+    HorizontalLayout {
+        y: parent.height - stroke;
+        width: parent.width;
+        height: stroke;
+        spacing: gap-len;
+        padding-left: Theme.radius-md;
+        padding-right: Theme.radius-md;
+        alignment: center;
+
+        for _[i] in h-count: Rectangle {
+            width: dash-len;
+            height: stroke;
+            background: stroke-color;
+        }
+    }
+
+    VerticalLayout {
+        x: 0;
+        width: stroke;
+        height: parent.height;
+        spacing: gap-len;
+        padding-top: Theme.radius-md;
+        padding-bottom: Theme.radius-md;
+        alignment: center;
+
+        for _[i] in v-count: Rectangle {
+            width: stroke;
+            height: dash-len;
+            background: stroke-color;
+        }
+    }
+
+    VerticalLayout {
+        x: parent.width - stroke;
+        width: stroke;
+        height: parent.height;
+        spacing: gap-len;
+        padding-top: Theme.radius-md;
+        padding-bottom: Theme.radius-md;
+        alignment: center;
+
+        for _[i] in v-count: Rectangle {
+            width: stroke;
+            height: dash-len;
+            background: stroke-color;
+        }
+    }
+}
+
+export component DropZone inherits Rectangle {
+    in property <bool> drag-active: false;
+    in property <string> selected-path: "";
+    in property <string> selected-label: "";
+    in property <[RecentImage]> recent-images;
+    callback activate;
+    callback open-recent-image(string);
+
+    border-radius: Theme.radius-md;
+    background: drag-active ? Theme.control-bg : Theme.panel-bg;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            root.activate();
+        }
+    }
+
+    VerticalLayout {
+        padding: Theme.pad-lg;
+        alignment: center;
+        spacing: Theme.gap-sm;
+
+        Text {
+            text: selected-path == "" ? "Drag an image here" : selected-label;
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 600;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: selected-path == "" ? "or click anywhere to select one" : selected-path;
+            color: Theme.text-muted;
+            opacity: selected-path == "" ? 0.72 : 1;
+            font-size: 14px;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+
+        if recent-images.length > 0 : VerticalLayout {
+            spacing: Theme.gap-xs;
+            alignment: center;
+            padding-top: Theme.gap-lg;
+            width: 100%;
+
+            Text {
+                text: "Recently selected";
+                color: Theme.text-muted;
+                font-family: Theme.font-family;
+                font-size: 11px;
+                horizontal-alignment: center;
+            }
+
+            for recent in recent-images: HorizontalLayout {
+                height: 22px;
+                width: 100%;
+                alignment: center;
+
+                Rectangle {
+                    height: 22px;
+                    width: min(root.width - 2 * Theme.pad-lg, max(260px, recent-label.preferred-width + 24px));
+                    background: recent-touch.has-hover ? Theme.hard-bg : transparent;
+                    border-width: 1px;
+                    border-color: recent-touch.has-hover ? Theme.border : transparent;
+
+                    recent-touch := TouchArea {
+                        clicked => {
+                            root.open-recent-image(recent.path);
+                        }
+                    }
+
+                    recent-label := Text {
+                        x: 12px;
+                        y: (parent.height - self.height) / 2;
+                        width: parent.width - 24px;
+                        text: recent.label;
+                        color: Theme.accent-orange;
+                        font-family: Theme.font-family;
+                        font-size: 12px;
+                        overflow: elide;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    DottedFrame {
+        width: 100%;
+        height: 100%;
+        stroke-color: drag-active ? Theme.text-muted : Theme.border;
+    }
+}
