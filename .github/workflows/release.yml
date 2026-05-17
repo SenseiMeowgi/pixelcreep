@@ -1,0 +1,308 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+      - 'Makefile'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Override version (plain, e.g. 1.0.0). Blank = auto-bump."
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  APP_BIN: pixelcreep
+  APP_NAME: PixelCreep
+  APP_BUNDLE_ID: io.pixelcreep.app
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      changelog: ${{ steps.bump.outputs.changelog }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Bump version (auto-bump path only)
+        id: bump
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.version == '')
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          tag_prefix: v
+
+      - name: Resolve final version + tag
+        id: resolve
+        env:
+          BUMP_VERSION: ${{ steps.bump.outputs.new_version }}
+          BUMP_TAG: ${{ steps.bump.outputs.new_tag }}
+          INPUT_VERSION: ${{ inputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "push" ] && [[ "${REF}" == refs/tags/v* ]]; then
+            TAG="${REF_NAME}"
+            VERSION="${TAG#v}"
+          elif [ -n "${INPUT_VERSION}" ]; then
+            VERSION="${INPUT_VERSION}"
+            TAG="v${INPUT_VERSION}"
+          else
+            VERSION="${BUMP_VERSION}"
+            TAG="${BUMP_TAG}"
+          fi
+          if [ -z "${VERSION}" ] || [ -z "${TAG}" ]; then
+            echo "Failed to resolve version/tag" >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+  build-linux:
+    name: Build Linux
+    needs: version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            pkg-config \
+            libdbus-1-dev \
+            libudev-dev \
+            libfontconfig-dev \
+            libgl1-mesa-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libxrandr-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: pixelcreep-v1
+          shared-key: linux-release
+          cache-on-failure: true
+          cache-bin: false
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Stage Linux binary
+        run: |
+          mkdir -p dist
+          cp "target/release/${APP_BIN}" "dist/${APP_BIN}-linux-x86_64"
+          chmod +x "dist/${APP_BIN}-linux-x86_64"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-release
+          path: dist/${{ env.APP_BIN }}-linux-x86_64
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows
+    needs: version
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: pixelcreep-v1
+          shared-key: windows-release
+          cache-on-failure: true
+          cache-bin: false
+
+      - name: Build release executable
+        run: cargo build --release --locked
+
+      - name: Stage Windows executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target\release\${env:APP_BIN}.exe" "dist\${env:APP_BIN}-windows-x86_64.exe"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-release
+          path: dist/${{ env.APP_BIN }}-windows-x86_64.exe
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS
+    needs: version
+    runs-on: macos-14
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure deployment target
+        run: echo "MACOSX_DEPLOYMENT_TARGET=14.0" >> "$GITHUB_ENV"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: pixelcreep-v1
+          shared-key: macos-arm64-release
+          cache-on-failure: true
+          cache-bin: false
+
+      - name: Build macOS release target
+        run: cargo build --release --locked --target aarch64-apple-darwin
+
+      - name: Assemble macOS app
+        run: |
+          APP_DIR="dist/app/${APP_NAME}.app"
+          mkdir -p "${APP_DIR}/Contents/MacOS"
+          mkdir -p "${APP_DIR}/Contents/Resources"
+          cp "target/aarch64-apple-darwin/release/${APP_BIN}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
+          chmod +x "${APP_DIR}/Contents/MacOS/${APP_NAME}"
+
+      - name: Create macOS app metadata
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          APP_DIR="dist/app/${APP_NAME}.app"
+          cat > "${APP_DIR}/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDevelopmentRegion</key>
+            <string>en</string>
+            <key>CFBundleDisplayName</key>
+            <string>${APP_NAME}</string>
+            <key>CFBundleExecutable</key>
+            <string>${APP_NAME}</string>
+            <key>CFBundleIdentifier</key>
+            <string>${APP_BUNDLE_ID}</string>
+            <key>CFBundleInfoDictionaryVersion</key>
+            <string>6.0</string>
+            <key>CFBundleName</key>
+            <string>${APP_NAME}</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${VERSION}</string>
+            <key>CFBundleVersion</key>
+            <string>${VERSION}</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>NSPrincipalClass</key>
+            <string>NSApplication</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Validate and ad-hoc sign macOS app
+        run: |
+          APP_DIR="dist/app/${APP_NAME}.app"
+          plutil -lint "${APP_DIR}/Contents/Info.plist"
+          test -x "${APP_DIR}/Contents/MacOS/${APP_NAME}"
+          codesign --force --deep --sign - "${APP_DIR}"
+          codesign --verify --deep --strict --verbose=2 "${APP_DIR}"
+
+      - name: Create macOS DMG
+        run: |
+          hdiutil create \
+            -volname "${APP_NAME}" \
+            -srcfolder "dist/app" \
+            -ov \
+            -format UDZO \
+            "dist/${APP_BIN}-macos-arm64.dmg"
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-release
+          path: dist/${{ env.APP_BIN }}-macos-arm64.dmg
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - version
+      - build-linux
+      - build-windows
+      - build-macos
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+          CHANGELOG: ${{ needs.version.outputs.changelog }}
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" release-assets/* --clobber
+          elif [ -n "${CHANGELOG}" ]; then
+            gh release create "${TAG}" release-assets/* \
+              --title "${VERSION}" \
+              --notes "${CHANGELOG}"
+          else
+            gh release create "${TAG}" release-assets/* \
+              --title "${VERSION}" \
+              --generate-notes
+          fi
