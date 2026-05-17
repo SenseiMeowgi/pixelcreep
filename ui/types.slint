@@ -1,0 +1,44 @@
+export struct RecentImage {
+    label: string,
+    path: string,
+}
+
+export enum SortMethod {
+    threshold,
+    hue-range,
+    saturation,
+    edge-mask,
+    portal,
+    random,
+}
+
+export enum SortDirection {
+    left,
+    right,
+    up,
+    down,
+}
+
+export enum AsdfSortMode {
+    white,
+    black,
+    bright,
+    dark,
+}
+
+export struct PortalSortUiParams {
+    max-iterations: float,
+    dist: float,
+    margin: float,
+    mark-seeds: bool,
+    direction: SortDirection,
+}
+
+export struct AsdfSortUiParams {
+    mode: AsdfSortMode,
+    loops: float,
+    white-value: float,
+    black-value: float,
+    bright-value: float,
+    dark-value: float,
+}

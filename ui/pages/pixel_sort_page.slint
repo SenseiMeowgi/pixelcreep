@@ -1,0 +1,786 @@
+import { Theme } from "../theme.slint";
+import { AsdfSortUiParams, PortalSortUiParams, SortDirection, SortMethod } from "../types.slint";
+import { AspectImageViewport } from "../components/pixel_sort_page/aspect_image_viewport.slint";
+import { SortMethodSelector } from "../components/pixel_sort_page/sort_method_selector.slint";
+import { SortMethodParamsPanel } from "../components/pixel_sort_page/sort_method_params/panel.slint";
+import { MiniSlider } from "../components/mini_slider.slint";
+
+component MenuButton inherits Rectangle {
+    in property <string> mnemonic;
+    in property <string> rest;
+
+    min-width: 54px;
+    background: touch.has-hover ? Theme.panel-bg : transparent;
+
+    touch := TouchArea { }
+
+    HorizontalLayout {
+        x: 12px;
+        y: 0px;
+        width: parent.width - 24px;
+        height: parent.height;
+        alignment: start;
+        spacing: 0px;
+
+        Text {
+            text: root.mnemonic;
+            color: Theme.accent;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.rest;
+            color: touch.has-hover ? Theme.text : Theme.text-dim;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component ToolButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    height: 22px;
+    background: root.active ? Theme.accent : (touch.has-hover ? Theme.panel-bg : Theme.hard-bg);
+    border-width: 1px;
+    border-color: Theme.divider;
+    horizontal-stretch: 0;
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 9px;
+        padding-right: 9px;
+        alignment: center;
+
+        Text {
+            text: root.label;
+            color: root.active ? Theme.page-bg : (touch.has-hover ? Theme.text : Theme.text-faint);
+            font-size: 10.5px;
+            letter-spacing: 0.5px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> label;
+    in property <string> shortcut: "";
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: root.primary ? 40px : 28px;
+    background: !root.enabled ? Theme.border : (root.primary ? (touch.has-hover ? Theme.accent-orange : Theme.accent) : (touch.has-hover ? Theme.control-bg : Theme.panel-bg));
+    border-width: root.primary ? 0px : 1px;
+    border-color: Theme.control-bg;
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    if !root.primary : Text {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        text: root.label;
+        color: Theme.text-dim;
+        font-size: 11px;
+        letter-spacing: 1px;
+    }
+
+    if root.primary : HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 10px;
+        spacing: 8px;
+
+        Text {
+            text: root.label;
+            color: Theme.page-bg;
+            font-size: 12.5px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        if root.shortcut != "" : Rectangle {
+            background: #00000033;
+            width: kbd.preferred-width + 10px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+
+            kbd := Text {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                text: root.shortcut;
+                color: Theme.page-bg;
+                font-size: 10px;
+                letter-spacing: 1px;
+            }
+        }
+    }
+}
+
+component MetaChip inherits Rectangle {
+    in property <string> selected-label;
+    in property <int> image-width;
+    in property <int> image-height;
+    in property <bool> busy;
+
+    height: 24px;
+    width: chip-row.preferred-width;
+    background: Theme.hard-bg;
+    border-width: 1px;
+    border-color: Theme.divider;
+
+    chip-row := HorizontalLayout {
+        padding-left: 9px;
+        padding-right: 9px;
+        spacing: 14px;
+        alignment: start;
+
+        Text {
+            text: root.selected-label == "" ? "untitled" : root.selected-label;
+            color: Theme.text;
+            font-size: 10.5px;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.image-width > 0 && root.image-height > 0 ? root.image-width + " × " + root.image-height : "-- × --";
+            color: Theme.text-faint;
+            font-size: 10.5px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: "rgb · 8-bit";
+            color: Theme.text-faint;
+            font-size: 10.5px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.busy ? "● working" : "● preview";
+            color: Theme.accent;
+            font-size: 10.5px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component AdjustmentCell inherits Rectangle {
+    in property <string> label;
+    in property <string> suffix: "";
+    in property <float> minimum: -100;
+    in property <float> maximum: 100;
+    in property <float> step: 1;
+    in property <float> default-value: 0;
+    in-out property <float> value;
+    callback changed(float);
+
+    private property <bool> is-default: abs(root.value - root.default-value) < root.step / 2;
+    private property <string> sign: root.value > 0 && root.suffix != "%" ? "+" : "";
+
+    background: Theme.hard-bg;
+    clip: true;
+
+    VerticalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        spacing: 2px;
+        alignment: start;
+
+        HorizontalLayout {
+            spacing: Theme.gap-xs;
+
+            Text {
+                text: root.label;
+                color: Theme.text-dim;
+                font-size: 10.5px;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+
+            HorizontalLayout {
+                spacing: 0px;
+                alignment: end;
+
+                Text {
+                    text: root.sign + round(root.value);
+                    color: root.is-default ? Theme.text-faint : Theme.accent;
+                    font-size: 10.5px;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: root.suffix;
+                    color: root.is-default ? Theme.text-faint : Theme.text-muted;
+                    font-size: 10.5px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        MiniSlider {
+            minimum: root.minimum;
+            maximum: root.maximum;
+            step: root.step;
+            value <=> root.value;
+            changed(val) => {
+                root.changed(val);
+            }
+        }
+    }
+}
+
+export component PixelSortPage inherits Rectangle {
+    in property <image> source-image;
+    in property <string> selected-label: "";
+    in property <string> selected-path: "";
+    in property <int> image-width: 0;
+    in property <int> image-height: 0;
+    in property <bool> busy;
+    in property <string> memory-usage: "mem -- mb";
+    in property <string> app-version: "";
+    in-out property <float> rotation-deg;
+    in-out property <float> zoom;
+    in-out property <float> pan-x;
+    in-out property <float> pan-y;
+    in property <float> last-rendered-pan-x: 0;
+    in property <float> last-rendered-pan-y: 0;
+    in-out property <int> doc-mode: 0;
+    in-out property <float> brightness;
+    in-out property <float> contrast;
+    in-out property <float> saturation;
+    in-out property <float> hue;
+    in-out property <float> vibrance;
+    in-out property <SortMethod> ps-method;
+    in-out property <AsdfSortUiParams> threshold-params;
+    in-out property <PortalSortUiParams> portal-params;
+    callback change-image;
+    callback adjustments-changed;
+    callback drag-preview-changed;
+    callback reset-adjustments;
+    callback reset-sort-params;
+    callback run-sort;
+
+    background: Theme.page-bg;
+
+    private property <int> viewport-interaction-mode: 0;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            height: 28px;
+            background: Theme.hard-bg;
+
+            HorizontalLayout {
+                spacing: 0px;
+                alignment: start;
+
+                MenuButton { mnemonic: "F"; rest: "ile"; }
+                MenuButton { mnemonic: "E"; rest: "dit"; }
+                MenuButton { mnemonic: "V"; rest: "iew"; }
+                MenuButton { mnemonic: "H"; rest: "elp"; }
+            }
+        }
+
+        // 1px black separator below menubar (mockup `.menubar { border-bottom }`).
+        Rectangle { height: 1px; background: #000000; }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 0px;
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: Theme.canvas-bg;
+                clip: true;
+
+                private property <float> src-aspect: root.image-height > 0 ? root.image-width / root.image-height : 1;
+                // doc-aspect changes based on selected container mode.
+                private property <float> doc-aspect:
+                    root.doc-mode == 1 ? (1.0 / max(src-aspect, 0.001)) :    // 90° rotated
+                    root.doc-mode == 2 ? 1.0 :                                // 1:1 square
+                    src-aspect;                                                // original
+                // Source-to-document size ratios per axis. Drives the placement
+                // pan limit inside AspectImageViewport so the user can slide
+                // the source within the document's slack even at zoom = 100%.
+                private property <float> src-to-dst-w:
+                    root.doc-mode == 1 ? src-aspect :
+                    root.doc-mode == 2 ? root.image-width / max(min(root.image-width, root.image-height), 1) :
+                    1.0;
+                private property <float> src-to-dst-h:
+                    root.doc-mode == 1 ? (1.0 / max(src-aspect, 0.001)) :
+                    root.doc-mode == 2 ? root.image-height / max(min(root.image-width, root.image-height), 1) :
+                    1.0;
+                private property <length> preview-max-width: parent.width - 80px;
+                private property <length> preview-max-height: parent.height - 48px;
+                private property <float> preview-aspect: preview-max-width / max(preview-max-height, 1px);
+                private property <length> image-frame-width: preview-aspect > doc-aspect ? preview-max-height * doc-aspect : preview-max-width;
+                private property <length> image-frame-height: preview-aspect > doc-aspect ? preview-max-height : preview-max-width / doc-aspect;
+                private property <float> viewport-scale: 1;
+                private property <float> next-viewport-scale: 1;
+                private property <float> viewport-scale-ratio: 1;
+                private property <length> viewport-pan-x: 0px;
+                private property <length> viewport-pan-y: 0px;
+                private property <length> bounded-viewport-pan-x: clamp-viewport-pan-x(viewport-pan-x);
+                private property <length> bounded-viewport-pan-y: clamp-viewport-pan-y(viewport-pan-y);
+                private property <length> viewport-drag-start-x: 0px;
+                private property <length> viewport-drag-start-y: 0px;
+                private property <length> viewport-drag-start-pan-x: 0px;
+                private property <length> viewport-drag-start-pan-y: 0px;
+                private property <length> viewport-focal-x: 0px;
+                private property <length> viewport-focal-y: 0px;
+                private property <length> scaled-image-frame-width: image-frame-width * viewport-scale;
+                private property <length> scaled-image-frame-height: image-frame-height * viewport-scale;
+                private property <length> max-viewport-pan-x: max(0px, (scaled-image-frame-width - parent.width) / 2 + 40px);
+                private property <length> max-viewport-pan-y: max(0px, (scaled-image-frame-height - parent.height) / 2 + 24px);
+
+                function clamp-viewport-pan-x(value: length) -> length {
+                    return clamp(value, -max-viewport-pan-x, max-viewport-pan-x);
+                }
+
+                function clamp-viewport-pan-y(value: length) -> length {
+                    return clamp(value, -max-viewport-pan-y, max-viewport-pan-y);
+                }
+
+                function zoom-viewport-at(px: length, py: length, scale-delta: float) {
+                    next-viewport-scale = clamp(viewport-scale + scale-delta, 0.25, 8);
+                    if (next-viewport-scale != viewport-scale) {
+                        viewport-scale-ratio = next-viewport-scale / viewport-scale;
+                        viewport-focal-x = px - parent.width / 2;
+                        viewport-focal-y = py - parent.height / 2;
+                        viewport-scale = next-viewport-scale;
+                        viewport-pan-x = clamp-viewport-pan-x(viewport-focal-x * (1 - viewport-scale-ratio) + bounded-viewport-pan-x * viewport-scale-ratio);
+                        viewport-pan-y = clamp-viewport-pan-y(viewport-focal-y * (1 - viewport-scale-ratio) + bounded-viewport-pan-y * viewport-scale-ratio);
+                    }
+                }
+
+                // Tiled checker backdrop covering the entire canvas.
+                Image {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    source: @image-url("../assets/canvas_checker.png");
+                    horizontal-tiling: repeat;
+                    vertical-tiling: repeat;
+                }
+
+                if root.image-width == 0 || root.image-height == 0 : Rectangle {
+                    x: 40px;
+                    y: 24px;
+                    width: parent.width - 80px;
+                    height: parent.height - 48px;
+                    background: Theme.canvas-tile-a;
+                    border-width: 1px;
+                    border-color: Theme.divider;
+                    clip: true;
+
+                    // Striped placeholder shown only when no image is loaded.
+                    Image {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width;
+                        height: parent.height;
+                        source: @image-url("../assets/image_stripes.png");
+                        horizontal-tiling: repeat;
+                        vertical-tiling: repeat;
+                    }
+
+                    Rectangle {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: badge.preferred-width + 20px;
+                        height: 24px;
+                        background: Theme.hard-bg;
+                        border-width: 1px;
+                        border-color: Theme.divider;
+
+                        badge := Text {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            text: "IMAGE PREVIEW";
+                            color: Theme.text-dim;
+                            font-size: 11px;
+                            letter-spacing: 2px;
+                        }
+                    }
+                }
+
+                if root.image-width > 0 && root.image-height > 0 : AspectImageViewport {
+                    x: (parent.width - self.width) / 2 + bounded-viewport-pan-x;
+                    y: (parent.height - self.height) / 2 + bounded-viewport-pan-y;
+                    width: scaled-image-frame-width;
+                    height: scaled-image-frame-height;
+                    source: root.source-image;
+                    rotation-deg: root.rotation-deg;
+                    zoom <=> root.zoom;
+                    pan-x-norm <=> root.pan-x;
+                    pan-y-norm <=> root.pan-y;
+                    last-rendered-pan-x-norm: root.last-rendered-pan-x;
+                    last-rendered-pan-y-norm: root.last-rendered-pan-y;
+                    src-to-dst-w: src-to-dst-w;
+                    src-to-dst-h: src-to-dst-h;
+                    interaction-enabled: root.viewport-interaction-mode == 1;
+                    transform-changed => {
+                        root.adjustments-changed();
+                    }
+                    drag-preview-requested => {
+                        root.drag-preview-changed();
+                    }
+                }
+
+                viewport-touch := TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    enabled: root.image-width > 0 && root.image-height > 0 && root.viewport-interaction-mode == 0;
+                    mouse-cursor: self.pressed ? grabbing : grab;
+
+                    pointer-event(ev) => {
+                        if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                            viewport-drag-start-x = self.mouse-x;
+                            viewport-drag-start-y = self.mouse-y;
+                            viewport-drag-start-pan-x = bounded-viewport-pan-x;
+                            viewport-drag-start-pan-y = bounded-viewport-pan-y;
+                        }
+                    }
+
+                    moved => {
+                        if (self.pressed) {
+                            viewport-pan-x = clamp-viewport-pan-x(viewport-drag-start-pan-x + self.mouse-x - viewport-drag-start-x);
+                            viewport-pan-y = clamp-viewport-pan-y(viewport-drag-start-pan-y + self.mouse-y - viewport-drag-start-y);
+                        }
+                    }
+
+                    scroll-event(ev) => {
+                        if (ev.delta-y != 0) {
+                            zoom-viewport-at(self.mouse-x, self.mouse-y, ev.delta-y < 0 ? 0.15 : -0.15);
+                            return accept;
+                        }
+
+                        return reject;
+                    }
+                }
+
+                Rectangle {
+                    x: 12px;
+                    y: 12px;
+                    height: tool-stack.preferred-height;
+                    width: tool-stack.preferred-width;
+
+                    tool-stack := VerticalLayout {
+                        spacing: 4px;
+                        alignment: start;
+
+                        viewport-mode-row := HorizontalLayout {
+                            spacing: 4px;
+                            alignment: start;
+
+                            ToolButton {
+                                label: "viewport";
+                                active: root.viewport-interaction-mode == 0;
+                                clicked => {
+                                    root.viewport-interaction-mode = 0;
+                                }
+                            }
+
+                            ToolButton {
+                                label: "placement";
+                                active: root.viewport-interaction-mode == 1;
+                                clicked => {
+                                    root.viewport-interaction-mode = 1;
+                                }
+                            }
+                        }
+
+                        container-mode-row := HorizontalLayout {
+                            spacing: 4px;
+                            alignment: start;
+
+                            ToolButton {
+                                label: "90°";
+                                active: root.doc-mode == 1;
+                                clicked => {
+                                    root.doc-mode = root.doc-mode == 1 ? 0 : 1;
+                                    root.pan-x = 0;
+                                    root.pan-y = 0;
+                                    root.adjustments-changed();
+                                }
+                            }
+
+                            ToolButton {
+                                label: "1:1";
+                                active: root.doc-mode == 2;
+                                clicked => {
+                                    root.doc-mode = root.doc-mode == 2 ? 0 : 2;
+                                    root.pan-x = 0;
+                                    root.pan-y = 0;
+                                    root.adjustments-changed();
+                                }
+                            }
+
+                            ToolButton {
+                                label: "original";
+                                active: root.doc-mode == 0;
+                                clicked => {
+                                    root.doc-mode = 0;
+                                    root.pan-x = 0;
+                                    root.pan-y = 0;
+                                    root.adjustments-changed();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    x: parent.width - self.width - 12px;
+                    y: 12px;
+                    height: 22px;
+                    width: tools-row.preferred-width;
+
+                    tools-row := HorizontalLayout {
+                        spacing: 4px;
+                        alignment: end;
+
+                        ToolButton { label: "100%"; }
+                        ToolButton { label: "fit"; }
+                        ToolButton { label: "A / B"; active: true; }
+                        ToolButton { label: "grid"; }
+                    }
+                }
+
+                MetaChip {
+                    x: 12px;
+                    y: parent.height - self.height - 12px;
+                    selected-label: root.selected-label;
+                    image-width: root.image-width;
+                    image-height: root.image-height;
+                    busy: root.busy;
+                }
+            }
+
+            // 1px black divider between canvas and rail (mockup `.canvas { border-right }`).
+            Rectangle { width: 1px; background: #000000; }
+
+            Rectangle {
+                width: 320px;
+                background: Theme.page-bg;
+
+                VerticalLayout {
+                    spacing: 0px;
+
+                    SortMethodSelector {
+                        method <=> root.ps-method;
+                    }
+
+                    // 1px bg1 separator: rail-header bottom (above params).
+                    Rectangle { height: 1px; background: Theme.panel-bg; }
+
+                    SortMethodParamsPanel {
+                        vertical-stretch: 1;
+                        method <=> root.ps-method;
+                        threshold-params <=> root.threshold-params;
+                        portal-params <=> root.portal-params;
+                    }
+
+                    // 1px bg1 separator: rail-footer top (above run button block).
+                    Rectangle { height: 1px; background: Theme.panel-bg; }
+
+                    Rectangle {
+                        height: 108px;
+                        background: Theme.hard-bg;
+
+                        VerticalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            padding-top: 14px;
+                            padding-bottom: 14px;
+                            spacing: 8px;
+                            alignment: start;
+
+                            ActionButton {
+                                primary: true;
+                                enabled: !root.busy && (root.ps-method == SortMethod.threshold || root.ps-method == SortMethod.portal);
+                                label: root.busy ? "SORTING" : "RUN PIXEL SORT";
+                                shortcut: "⌘↵";
+                                clicked => {
+                                    root.run-sort();
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+
+                                ActionButton {
+                                    label: "reset params";
+                                    enabled: root.ps-method == SortMethod.threshold || root.ps-method == SortMethod.portal;
+                                    clicked => {
+                                        root.reset-sort-params();
+                                    }
+                                }
+
+                                ActionButton {
+                                    label: "export...";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1px black separator above the bottom adjust bar.
+        Rectangle { height: 1px; background: #000000; }
+
+        Rectangle {
+            height: 64px;
+            background: Theme.hard-bg;
+
+            HorizontalLayout {
+                spacing: 0px;
+
+                Rectangle {
+                    width: 80px;
+                    background: Theme.hard-bg;
+
+                    Text {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        text: "ADJUST";
+                        color: Theme.text-muted;
+                        font-size: 10px;
+                        letter-spacing: 3px;
+                    }
+                }
+
+                // 1px black gutter to the right of ADJUST label.
+                Rectangle { width: 1px; background: #000000; }
+
+                // Adjust cells with 1px black gutters via black-bg + 1px spacing.
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: #000000;
+
+                    HorizontalLayout {
+                        spacing: 1px;
+
+                        AdjustmentCell { label: "brightness"; value <=> root.brightness; changed(v) => { root.adjustments-changed(); } }
+                        AdjustmentCell { label: "contrast"; value <=> root.contrast; changed(v) => { root.adjustments-changed(); } }
+                        AdjustmentCell { label: "saturation"; value <=> root.saturation; changed(v) => { root.adjustments-changed(); } }
+                        AdjustmentCell { label: "hue"; suffix: "°"; minimum: -180; maximum: 180; value <=> root.hue; changed(v) => { root.adjustments-changed(); } }
+                        AdjustmentCell { label: "vibrance"; value <=> root.vibrance; changed(v) => { root.adjustments-changed(); } }
+                        AdjustmentCell { label: "rotation"; suffix: "°"; minimum: -180; maximum: 180; value <=> root.rotation-deg; changed(v) => { root.adjustments-changed(); } }
+                        AdjustmentCell { label: "zoom"; suffix: "%"; minimum: 0; maximum: 400; default-value: 100; value <=> root.zoom; changed(v) => { root.adjustments-changed(); } }
+                    }
+                }
+            }
+        }
+
+        // 1px black separator above the status bar.
+        Rectangle { height: 1px; background: #000000; }
+
+        Rectangle {
+            height: 22px;
+            background: Theme.hard-bg;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 16px;
+                alignment: start;
+
+                // ready/working chip with pip
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+
+                    Rectangle {
+                        width: 6px;
+                        height: 6px;
+                        y: (parent.height - self.height) / 2;
+                        background: root.busy ? Theme.accent : Theme.accent-green;
+                    }
+
+                    Text {
+                        text: root.busy ? "working" : "ready";
+                        color: root.busy ? Theme.accent : Theme.accent-green;
+                        font-size: 10px;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "method";
+                        color: Theme.text-muted;
+                        font-size: 10px;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.ps-method == SortMethod.threshold ? "threshold" : (root.ps-method == SortMethod.hue-range ? "hue range" : (root.ps-method == SortMethod.saturation ? "saturation" : (root.ps-method == SortMethod.edge-mask ? "edge mask" : (root.ps-method == SortMethod.portal ? "portal" : "random"))));
+                        color: Theme.text-dim;
+                        font-size: 10px;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: "direction";
+                        color: Theme.text-muted;
+                        font-size: 10px;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.ps-method == SortMethod.portal ? (root.portal-params.direction == SortDirection.left ? "left" : (root.portal-params.direction == SortDirection.right ? "right" : (root.portal-params.direction == SortDirection.up ? "up" : "down"))) : "--";
+                        color: Theme.text-dim;
+                        font-size: 10px;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                Text {
+                    text: root.memory-usage;
+                    color: Theme.text-muted;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: root.app-version;
+                    color: Theme.text-muted;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

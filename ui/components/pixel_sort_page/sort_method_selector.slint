@@ -1,0 +1,85 @@
+import { Theme } from "../../theme.slint";
+import { SortMethod } from "../../types.slint";
+import { SectionHead } from "section_head.slint";
+
+component MethodButton inherits Rectangle {
+    in property <string> number;
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    height: 46px;
+    background: root.active ? Theme.accent : (touch.has-hover ? Theme.control-bg : Theme.panel-bg);
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    number-text := Text {
+        x: 8px;
+        y: 10px;
+        width: parent.width - 16px;
+        height: 13px;
+        overflow: clip;
+        vertical-alignment: top;
+        text: root.number;
+        color: root.active ? Theme.page-bg : Theme.text-muted;
+        opacity: root.active ? 0.72 : 1;
+        font-size: 9.5px;
+        letter-spacing: 2px;
+    }
+
+    Text {
+        x: 8px;
+        y: number-text.y + number-text.height;
+        width: parent.width - 16px;
+        height: 15px;
+        overflow: clip;
+        vertical-alignment: top;
+        text: root.label;
+        color: root.active ? Theme.page-bg : Theme.text-dim;
+        font-size: 11.5px;
+        font-weight: root.active ? 700 : 400;
+    }
+}
+
+export component SortMethodSelector inherits Rectangle {
+    in-out property <SortMethod> method;
+
+    height: 192px;
+    background: Theme.page-bg;
+
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 8px;
+        alignment: start;
+
+        SectionHead { label: "SORT METHOD"; }
+
+        Rectangle {
+            background: #000000;
+
+            GridLayout {
+                padding: 1px;
+                spacing: 1px;
+                Row {
+                    MethodButton { number: "01"; label: "threshold"; active: root.method == SortMethod.threshold; clicked => { root.method = SortMethod.threshold; } }
+                    MethodButton { number: "02"; label: "hue range"; active: root.method == SortMethod.hue-range; clicked => { root.method = SortMethod.hue-range; } }
+                }
+                Row {
+                    MethodButton { number: "03"; label: "saturation"; active: root.method == SortMethod.saturation; clicked => { root.method = SortMethod.saturation; } }
+                    MethodButton { number: "04"; label: "edge mask"; active: root.method == SortMethod.edge-mask; clicked => { root.method = SortMethod.edge-mask; } }
+                }
+                Row {
+                    MethodButton { number: "05"; label: "portal"; active: root.method == SortMethod.portal; clicked => { root.method = SortMethod.portal; } }
+                    MethodButton { number: "06"; label: "random"; active: root.method == SortMethod.random; clicked => { root.method = SortMethod.random; } }
+                }
+            }
+        }
+    }
+}

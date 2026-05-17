@@ -1,0 +1,124 @@
+import "assets/fonts/JetBrainsMono-Regular.ttf";
+import "assets/fonts/JetBrainsMono-Medium.ttf";
+import "assets/fonts/JetBrainsMono-Bold.ttf";
+
+export { Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { AsdfSortMode, AsdfSortUiParams, PortalSortUiParams, RecentImage, SortDirection, SortMethod } from "types.slint";
+import { ImportPage } from "pages/import_page.slint";
+import { PixelSortPage } from "pages/pixel_sort_page.slint";
+
+export component AppWindow inherits Window {
+    title: "pixelcreep";
+    preferred-width: 1100px;
+    preferred-height: 700px;
+    background: Theme.page-bg;
+    default-font-family: Theme.font-family;
+    default-font-size: 13px;
+
+    in-out property <int> view: 0;
+    in-out property <image> source-image;
+    in-out property <string> selected-path: "";
+    in-out property <string> selected-label: "";
+    in-out property <int> image-width: 0;
+    in-out property <int> image-height: 0;
+    in-out property <bool> drag-active: false;
+    in-out property <bool> busy: false;
+    in-out property <string> memory-usage: "mem -- mb";
+    in-out property <string> app-version: "";
+    in property <[RecentImage]> recent-images;
+    in-out property <float> adj-brightness: 0;
+    in-out property <float> adj-contrast: 0;
+    in-out property <float> adj-saturation: 0;
+    in-out property <float> adj-hue: 0;
+    in-out property <float> adj-vibrance: 0;
+    in-out property <float> adj-rotation: 0;
+    in-out property <float> adj-zoom: 100;
+    in-out property <float> adj-pan-x: 0;
+    in-out property <float> adj-pan-y: 0;
+    // What the worker has actually baked into source-image; drives the live
+    // GPU delta in AspectImageViewport so mouse-drag feels instant.
+    in-out property <float> last-rendered-pan-x: 0;
+    in-out property <float> last-rendered-pan-y: 0;
+    in-out property <int> doc-mode: 0;
+    in-out property <SortMethod> ps-method: SortMethod.portal;
+    in-out property <AsdfSortUiParams> threshold-params: {
+        mode: AsdfSortMode.white,
+        loops: 1,
+        white-value: -12345678,
+        black-value: -3456789,
+        bright-value: 127,
+        dark-value: 223,
+    };
+    in-out property <PortalSortUiParams> portal-params: {
+        max-iterations: 2000,
+        dist: 200,
+        margin: 50,
+        mark-seeds: false,
+        direction: SortDirection.right,
+    };
+    callback pick-image();
+    callback open-recent-image(string);
+    callback adj-changed();
+    callback drag-preview-changed();
+    callback reset-adjustments();
+    callback reset-sort-params();
+    callback run-sort();
+
+    if (root.view == 0) : ImportPage {
+        drag-active: root.drag-active;
+        selected-path: root.selected-path;
+        selected-label: root.selected-label;
+        recent-images: root.recent-images;
+        activate => {
+            root.pick-image();
+        }
+        open-recent-image(path) => {
+            root.open-recent-image(path);
+        }
+    }
+
+    if (root.view == 1) : PixelSortPage {
+        busy: root.busy;
+        source-image: root.source-image;
+        selected-label: root.selected-label;
+        selected-path: root.selected-path;
+        image-width: root.image-width;
+        image-height: root.image-height;
+        memory-usage: root.memory-usage;
+        app-version: root.app-version;
+        rotation-deg <=> root.adj-rotation;
+        zoom <=> root.adj-zoom;
+        pan-x <=> root.adj-pan-x;
+        pan-y <=> root.adj-pan-y;
+        last-rendered-pan-x: root.last-rendered-pan-x;
+        last-rendered-pan-y: root.last-rendered-pan-y;
+        doc-mode <=> root.doc-mode;
+        brightness <=> root.adj-brightness;
+        contrast <=> root.adj-contrast;
+        saturation <=> root.adj-saturation;
+        hue <=> root.adj-hue;
+        vibrance <=> root.adj-vibrance;
+        ps-method <=> root.ps-method;
+        threshold-params <=> root.threshold-params;
+        portal-params <=> root.portal-params;
+        change-image => {
+            root.pick-image();
+        }
+        adjustments-changed => {
+            root.adj-changed();
+        }
+        drag-preview-changed => {
+            root.drag-preview-changed();
+        }
+        reset-adjustments => {
+            root.reset-adjustments();
+        }
+        reset-sort-params => {
+            root.reset-sort-params();
+        }
+        run-sort => {
+            root.run-sort();
+        }
+    }
+}

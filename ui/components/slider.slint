@@ -1,0 +1,62 @@
+import { Theme } from "../theme.slint";
+import { MiniSlider } from "mini_slider.slint";
+
+export component EditorSlider inherits VerticalLayout {
+    in property <string> label;
+    in property <string> suffix: "";
+    in-out property <float> value;
+    in property <float> default-value: 0;
+    in property <float> minimum: -100;
+    in property <float> maximum: 100;
+    in property <float> step: 1;
+    in property <bool> compact: false;
+    callback changed(float);
+
+    private property <bool> is-default: abs(root.value - root.default-value) < root.step / 2;
+    private property <string> sign: root.value > 0 && root.suffix != "%" ? "+" : "";
+
+    spacing: root.compact ? 2px : 3px;
+
+    HorizontalLayout {
+        spacing: Theme.gap-xs;
+
+        Text {
+            text: root.label;
+            color: Theme.text-dim;
+            font-size: root.compact ? 10.5px : 11.5px;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+
+        // Value: number in accent (or text-faint when default), suffix in muted gray.
+        HorizontalLayout {
+            spacing: 0px;
+            alignment: end;
+            min-width: root.compact ? 36px : 52px;
+
+            Text {
+                text: root.sign + round(root.value);
+                color: root.is-default ? Theme.text-faint : Theme.accent;
+                font-size: root.compact ? 10.5px : 11.5px;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: root.suffix;
+                color: root.is-default ? Theme.text-faint : Theme.text-muted;
+                font-size: root.compact ? 10.5px : 11.5px;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    MiniSlider {
+        minimum: root.minimum;
+        maximum: root.maximum;
+        step: root.step;
+        value <=> root.value;
+        changed(val) => {
+            root.changed(val);
+        }
+    }
+}

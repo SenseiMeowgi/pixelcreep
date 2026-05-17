@@ -1,0 +1,100 @@
+import { Theme } from "../../../theme.slint";
+import { SortDirection } from "../../../types.slint";
+import { StyledCheckbox } from "../../checkbox.slint";
+import { EditorSlider } from "../../slider.slint";
+import { SectionHead } from "../section_head.slint";
+
+component SegmentButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    height: 28px;
+    background: root.active ? Theme.accent : (touch.has-hover ? Theme.control-bg : Theme.panel-bg);
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    Text {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        text: root.label;
+        color: root.active ? Theme.page-bg : Theme.text-faint;
+        font-size: 11px;
+    }
+}
+
+export component PortalSortParams inherits VerticalLayout {
+    in-out property <float> max-iterations;
+    in-out property <float> dist;
+    in-out property <float> margin;
+    in-out property <bool> mark-seeds;
+    in-out property <SortDirection> direction;
+
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    spacing: 10px;
+    alignment: start;
+
+    SectionHead { label: "PARAMETERS"; hint: "seeded column sort"; }
+
+    EditorSlider {
+        label: "iterations";
+        minimum: 1;
+        maximum: 9999;
+        step: 50;
+        default-value: 2000;
+        value <=> root.max-iterations;
+    }
+
+    EditorSlider {
+        label: "column length";
+        suffix: "px";
+        minimum: 1;
+        maximum: 2000;
+        step: 10;
+        default-value: 200;
+        value <=> root.dist;
+    }
+
+    EditorSlider {
+        label: "seed margin";
+        suffix: "px";
+        minimum: 1;
+        maximum: 255;
+        step: 1;
+        default-value: 50;
+        value <=> root.margin;
+    }
+
+    StyledCheckbox {
+        text: "mark seeds (red)";
+        checked <=> root.mark-seeds;
+    }
+
+    Rectangle { height: 4px; background: transparent; }
+    Rectangle { height: 1px; background: Theme.panel-bg; }
+    Rectangle { height: 4px; background: transparent; }
+
+    SectionHead { label: "DIRECTION"; }
+
+    Rectangle {
+        background: #000000;
+        height: 30px;
+
+        HorizontalLayout {
+            padding: 1px;
+            spacing: 1px;
+
+            SegmentButton { label: "left"; active: root.direction == SortDirection.left; clicked => { root.direction = SortDirection.left; } }
+            SegmentButton { label: "right"; active: root.direction == SortDirection.right; clicked => { root.direction = SortDirection.right; } }
+            SegmentButton { label: "up"; active: root.direction == SortDirection.up; clicked => { root.direction = SortDirection.up; } }
+            SegmentButton { label: "down"; active: root.direction == SortDirection.down; clicked => { root.direction = SortDirection.down; } }
+        }
+    }
+}

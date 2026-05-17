@@ -1,0 +1,44 @@
+import { ScrollView } from "std-widgets.slint";
+import { AsdfSortUiParams, PortalSortUiParams, SortMethod } from "../../../types.slint";
+import { EmptySortParams } from "none.slint";
+import { PortalSortParams } from "portal.slint";
+import { ThresholdSortParams } from "threshold.slint";
+
+export component SortMethodParamsPanel inherits Rectangle {
+    in-out property <SortMethod> method;
+    in-out property <AsdfSortUiParams> threshold-params;
+    in-out property <PortalSortUiParams> portal-params;
+
+    scroll := ScrollView {
+        width: 100%;
+        height: 100%;
+        viewport-width: self.visible-width;
+        viewport-height: max(self.visible-height, content.preferred-height);
+
+        content := VerticalLayout {
+            width: scroll.visible-width;
+            alignment: start;
+
+            if root.method == SortMethod.threshold : ThresholdSortParams {
+                mode <=> root.threshold-params.mode;
+                loops <=> root.threshold-params.loops;
+                white-value <=> root.threshold-params.white-value;
+                black-value <=> root.threshold-params.black-value;
+                bright-value <=> root.threshold-params.bright-value;
+                dark-value <=> root.threshold-params.dark-value;
+            }
+
+            if root.method == SortMethod.portal : PortalSortParams {
+                max-iterations <=> root.portal-params.max-iterations;
+                dist <=> root.portal-params.dist;
+                margin <=> root.portal-params.margin;
+                mark-seeds <=> root.portal-params.mark-seeds;
+                direction <=> root.portal-params.direction;
+            }
+
+            if root.method != SortMethod.threshold && root.method != SortMethod.portal : EmptySortParams {
+                method-label: root.method == SortMethod.hue-range ? "hue range" : (root.method == SortMethod.saturation ? "saturation" : (root.method == SortMethod.edge-mask ? "edge mask" : "random"));
+            }
+        }
+    }
+}

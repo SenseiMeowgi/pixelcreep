@@ -1,0 +1,22 @@
+import { Theme } from "../../theme.slint";
+
+export component SectionHead inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> hint: "";
+
+    spacing: Theme.gap-xs;
+
+    Text {
+        text: root.label;
+        color: Theme.text-muted;
+        font-size: 10px;
+        letter-spacing: 3px;
+        horizontal-stretch: 1;
+    }
+
+    Text {
+        text: root.hint;
+        color: Theme.text-faint;
+        font-size: 10.5px;
+    }
+}
